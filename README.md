@@ -36,10 +36,10 @@ streamlit, pandas, tweepy, torch, transformers, matplotlib, emoji, python-dotenv
 ## Proje Yapısı
 
 duyguanalizi/  
-├── app.py               ## Ana Streamlit uygulaması  
-├── .env                 ## Twitter API Bearer Token (GitHub’a yüklenmez)  
-├── .gitignore           ## Gizli dosyaların yüklenmesini engeller
-└── README.md            ## Proje açıklaması
+├── app.py
+├── .env
+├── .gitignore    
+└── README.md      
 
 
 ## Geliştirici
