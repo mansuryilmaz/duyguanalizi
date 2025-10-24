@@ -40,5 +40,5 @@ duyguanalizi/
 ├── .env                 # Twitter API Bearer Token (GitHub’a yüklenmez)
 ├── .gitignore           # Gizli dosyaların yüklenmesini engeller
 ├── requirements.txt     # Gerekli Python kütüphaneleri
-└── README.md            # Proje açıklaması
+└── README.md            
 ```
