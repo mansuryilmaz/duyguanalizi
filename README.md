@@ -21,12 +21,12 @@ streamlit, pandas, tweepy, torch, transformers, matplotlib, emoji, python-dotenv
 
 1. `.env` dosyasını proje klasörüne ekle. İçeriği şu şekilde olmalı:
 
-BEARER_TOKEN=twitter_bearer_token
+    BEARER_TOKEN=twitter_bearer_token
 
 
 2. Streamlit uygulamasını çalıştır:
 
-streamlit run app.py
+   streamlit run app.py
 
 3. Arayüzde analiz etmek istediğin konu veya hashtag’i gir.  
 4. Tweet sayısını seç ve “📥 Tweetleri Çek ve Kaydet” butonuna bas.  
