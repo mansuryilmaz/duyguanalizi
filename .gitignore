@@ -1,0 +1,33 @@
+# --- Python Derleme Dosyaları ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# --- Ortam Dosyaları ---
+.env
+.env.*
+
+# --- Virtual Environment ---
+venv/
+.venv/
+
+# --- IDE / Editor ---
+.vscode/
+.idea/
+*.swp
+
+# --- Log Dosyaları ---
+*.log
+
+# --- Streamlit Cache ---
+.streamlit/
+.cache/
+
+# --- Geçici Dosyalar ---
+*.bak
+*.tmp
+.DS_Store
+
+# --- CSV Çıktıları ---
+tweets.csv
+results.csv
