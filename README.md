@@ -37,8 +37,7 @@ streamlit run app.py
 ```text
 duyguanalizi/
 ├── app.py               # Ana Streamlit uygulaması
-├── .env                 # Twitter API Bearer Token (GitHub’a yüklenmez)
-├── .gitignore           # Gizli dosyaların yüklenmesini engeller
-├── requirements.txt     # Gerekli Python kütüphaneleri
+├── .env                 # Twitter API Bearer Token
+├── .gitignore              
 └── README.md            
 ```
