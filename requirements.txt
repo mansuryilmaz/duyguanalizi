@@ -1,0 +1,8 @@
+streamlit
+pandas
+tweepy
+python-dotenv
+transformers
+torch
+emoji
+matplotlib

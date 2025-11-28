@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  streamlit-app:
+    build: .
+    ports:
+      - "8501:8501"
+    volumes:
+      - .:/app             # Kod değişikliklerini anında yansıtmak için
+      - ./cache:/app/cache # Model cache klasörü
+    env_file:
+      - .env               # .env dosyasındaki değişkenleri kullan
+    command: >
+      streamlit run app.py
+      --server.address=0.0.0.0
+      --server.port=8501
