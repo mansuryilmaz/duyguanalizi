@@ -8,4 +8,5 @@ emoji
 matplotlib
 redis
 google-api-python-client
+openpyxl
 
