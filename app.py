@@ -16,13 +16,19 @@ from googleapiclient.discovery import build
 # =====================================================
 # 0. ENV (Streamlit Secrets / .env)
 # =====================================================
-BEARER_TOKEN = os.getenv("BEARER_TOKEN")
-YT_API_KEY = os.getenv("YT_API_KEY")
+def get_env(key, default=None):
+    try:
+        return st.secrets[key]
+    except Exception:
+        return os.getenv(key, default)
 
-REDIS_HOST = os.getenv("REDIS_HOST")
-REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
-REDIS_SSL = os.getenv("REDIS_SSL", "false").lower() == "true"
+BEARER_TOKEN = get_env("BEARER_TOKEN")
+YT_API_KEY = get_env("YT_API_KEY")
+
+REDIS_HOST = get_env("REDIS_HOST")
+REDIS_PORT = int(get_env("REDIS_PORT", 6379))
+REDIS_PASSWORD = get_env("REDIS_PASSWORD")
+REDIS_SSL = get_env("REDIS_SSL", "false") == "true"
 
 # =====================================================
 # 1. REDIS
@@ -35,6 +41,7 @@ redis_client = redis.Redis(
     ssl=REDIS_SSL,
     socket_connect_timeout=5
 )
+
 
 try:
     redis_client.ping()
