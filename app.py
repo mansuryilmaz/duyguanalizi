@@ -28,10 +28,14 @@ REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 # =====================================================
 # 1. REDIS
 # =====================================================
+use_ssl = os.getenv("REDIS_SSL", "false") == "true"
+
 redis_client = redis.Redis(
-    host=REDIS_HOST,
-    port=REDIS_PORT,
+    host=os.getenv("REDIS_HOST"),
+    port=int(os.getenv("REDIS_PORT")),
+    password=os.getenv("REDIS_PASSWORD"),
     decode_responses=True,
+    ssl=use_ssl,
     socket_connect_timeout=5
 )
 
