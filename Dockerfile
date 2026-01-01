@@ -28,14 +28,22 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # --------------------------
-#   6. Streamlit portu
+#   6. .env dosyasını kopyala
+# --------------------------
+COPY .env .
+
+# --------------------------
+#   7. Streamlit portu
 # --------------------------
 EXPOSE 8501
 
 # --------------------------
-#   7. Streamlit başlat, model için cache klasörüne izin ver
+#   8. Transformers cache klasörleri
 # --------------------------
 ENV TRANSFORMERS_CACHE=/app/cache
 ENV HF_HOME=/app/cache
 
+# --------------------------
+#   9. Streamlit başlat
+# --------------------------
 CMD ["streamlit", "run", "app.py", "--server.address=0.0.0.0", "--server.port=8501"]

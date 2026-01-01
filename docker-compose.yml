@@ -10,7 +10,19 @@ services:
       - ./cache:/app/cache # Model cache klasörü
     env_file:
       - .env               # .env dosyasındaki değişkenleri kullan
+    depends_on:
+      - redis              # Redis servisi başlatılmadan Streamlit başlamasın
     command: >
       streamlit run app.py
       --server.address=0.0.0.0
       --server.port=8501
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data   # Redis verilerini kalıcı hale getirmek için
+
+volumes:
+  redis-data:

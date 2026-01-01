@@ -6,3 +6,6 @@ transformers
 torch
 emoji
 matplotlib
+redis
+google-api-python-client
+

@@ -19,16 +19,19 @@ venv/
 # --- Log Dosyaları ---
 *.log
 
-# --- Streamlit Cache ---
+# --- Streamlit / HuggingFace Cache ---
 .streamlit/
 .cache/
-cache/             # Docker cache klasörü
+cache/
+models/
 
 # --- Geçici Dosyalar ---
 *.bak
 *.tmp
 .DS_Store
+Thumbs.db
 
-# --- CSV Çıktıları ---
+# --- Çıktı Dosyaları ---
 tweets.csv
 results.csv
+*.xlsx
