@@ -9,33 +9,30 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import matplotlib.pyplot as plt
 import emoji
 import os
-from dotenv import load_dotenv
 import redis
 from io import BytesIO
 from googleapiclient.discovery import build
 
 # =====================================================
-# 0. ENV
+# 0. ENV (Streamlit Secrets / .env)
 # =====================================================
-load_dotenv()
-
 BEARER_TOKEN = os.getenv("BEARER_TOKEN")
 YT_API_KEY = os.getenv("YT_API_KEY")
 
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_HOST = os.getenv("REDIS_HOST")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+REDIS_SSL = os.getenv("REDIS_SSL", "false").lower() == "true"
 
 # =====================================================
 # 1. REDIS
 # =====================================================
-use_ssl = os.getenv("REDIS_SSL", "false") == "true"
-
 redis_client = redis.Redis(
-    host=os.getenv("REDIS_HOST"),
-    port=int(os.getenv("REDIS_PORT")),
-    password=os.getenv("REDIS_PASSWORD"),
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    password=REDIS_PASSWORD,
     decode_responses=True,
-    ssl=use_ssl,
+    ssl=REDIS_SSL,
     socket_connect_timeout=5
 )
 
@@ -70,7 +67,7 @@ twitter_client = tweepy.Client(bearer_token=BEARER_TOKEN) if BEARER_TOKEN else N
 youtube = build("youtube", "v3", developerKey=YT_API_KEY)
 
 # =====================================================
-# 5. CLEAN
+# 5. TEXT CLEAN
 # =====================================================
 def clean_text(text):
     if pd.isna(text):
@@ -85,7 +82,7 @@ def clean_text(text):
     return re.sub(r"\s+", " ", text).strip()
 
 # =====================================================
-# 6. PREDICT
+# 6. SENTIMENT
 # =====================================================
 def predict_sentiment(text):
     inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
@@ -95,51 +92,53 @@ def predict_sentiment(text):
     return labels[torch.argmax(probs).item()]
 
 # =====================================================
-# 7. FETCH TWITTER
+# 7. TWITTER FETCH
 # =====================================================
 @st.cache_data(ttl=600)
 def fetch_tweets(keyword, count):
     tweets = []
+    if not twitter_client:
+        return tweets
     res = twitter_client.search_recent_tweets(
         query=f"{keyword} lang:tr -is:retweet",
         max_results=min(count, 100)
     )
-    if res.data:
+    if res and res.data:
         tweets = [t.text for t in res.data]
     return tweets
 
 # =====================================================
-# 8. FETCH YOUTUBE
+# 8. YOUTUBE FETCH
 # =====================================================
 def get_video_ids(keyword, max_results=5):
-    req = youtube.search().list(
+    res = youtube.search().list(
         q=keyword,
         part="id",
         type="video",
         maxResults=max_results
-    )
-    res = req.execute()
+    ).execute()
     return [item["id"]["videoId"] for item in res["items"]]
 
 @st.cache_data(ttl=600)
 def fetch_youtube_comments(keyword, limit):
     comments = []
     for vid in get_video_ids(keyword):
-        req = youtube.commentThreads().list(
+        res = youtube.commentThreads().list(
             part="snippet",
             videoId=vid,
             maxResults=100,
             textFormat="plainText"
-        )
-        res = req.execute()
+        ).execute()
         for item in res["items"]:
-            comments.append(item["snippet"]["topLevelComment"]["snippet"]["textDisplay"])
+            comments.append(
+                item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
+            )
             if len(comments) >= limit:
                 return comments
     return comments
 
 # =====================================================
-# 9. TEMA + KPI CSS
+# 9. THEME + CSS (AYNEN KORUNDU)
 # =====================================================
 mode = st.sidebar.radio("🎨 Tema", ["Light", "Dark"])
 BG = "#0f172a" if mode == "Dark" else "#f8fafc"
@@ -157,7 +156,6 @@ width:100%; border-radius:14px;
 background:linear-gradient(90deg,#0284c7,#22d3ee);
 font-weight:700; color:black;
 }}
-
 .kpi-box {{
     padding:12px;
     border-radius:14px;
@@ -166,9 +164,6 @@ font-weight:700; color:black;
     color:white;
     margin-bottom:20px;
 }}
-.kpi-box h2 {{ font-size:22px; margin:0; }}
-.kpi-box p {{ font-size:13px; margin:0; opacity:0.9; }}
-
 .kpi-total {{ background:#2563eb; }}
 .kpi-pos   {{ background:#16a34a; }}
 .kpi-neu   {{ background:#facc15; color:black; }}
@@ -177,60 +172,22 @@ font-weight:700; color:black;
 """, unsafe_allow_html=True)
 
 # =====================================================
-# 10. HEADER (ORTALANMIŞ & ANİMASYONLU TASARIM)
+# 10. HEADER
 # =====================================================
 st.set_page_config(page_title="Türkçe Duygu Analizi", layout="wide")
 
 st.markdown("""
-<style>
-@keyframes gradientShift {
-    0% {background-position:0% 50%;}
-    50% {background-position:100% 50%;}
-    100% {background-position:0% 50%;}
-}
-
-.header-card {
-    text-align:center;
-    padding:30px;
-    border-radius:20px;
-    background: linear-gradient(135deg, #0284c7, #22d3ee, #06b6d4);
-    background-size: 300% 300%;
-    color:white;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-    margin-bottom:20px;
-    animation: gradientShift 8s ease infinite;
-}
-
-.header-card h1 {
-    font-size:36px;
-    font-weight:800;
-    margin-bottom:10px;
-    text-shadow: 2px 2px 6px rgba(0,0,0,0.3);
-    transition: transform 0.3s;
-}
-
-.header-card h1:hover {
-    transform: scale(1.05) rotate(1deg);
-}
-
-.header-card p {
-    font-size:16px;
-    margin:0;
-    opacity:0.9;
-    transition: opacity 0.3s;
-}
-
-.header-card p:hover {
-    opacity:1;
-}
-</style>
-
-<div class="header-card">
-    <h1>📊 Sosyal Medya Türkçe Duygu Analizi</h1>
-    <p>Twitter · YouTube · BERT · Redis Cache</p>
+<div class="header-card" style="
+text-align:center;
+padding:30px;
+border-radius:20px;
+background: linear-gradient(135deg, #0284c7, #22d3ee, #06b6d4);
+color:white;
+margin-bottom:20px;">
+<h1>📊 Sosyal Medya Türkçe Duygu Analizi</h1>
+<p>Twitter · YouTube · BERT · Redis Cache</p>
 </div>
 """, unsafe_allow_html=True)
-
 
 # =====================================================
 # 11. INPUT
@@ -290,10 +247,10 @@ if analyze:
     total = len(df)
 
     c1, c2, c3, c4 = st.columns(4)
-    c1.markdown(f"<div class='kpi-box kpi-total'><p>Toplam</p><h2>{total}</h2></div>", unsafe_allow_html=True)
-    c2.markdown(f"<div class='kpi-box kpi-pos'><p>Olumlu</p><h2>{counts.get('Olumlu',0)}</h2></div>", unsafe_allow_html=True)
-    c3.markdown(f"<div class='kpi-box kpi-neu'><p>Nötr</p><h2>{counts.get('Nötr',0)}</h2></div>", unsafe_allow_html=True)
-    c4.markdown(f"<div class='kpi-box kpi-neg'><p>Olumsuz</p><h2>{counts.get('Olumsuz',0)}</h2></div>", unsafe_allow_html=True)
+    c1.markdown(f"<div class='kpi-box kpi-total'><h2>{total}</h2><p>Toplam</p></div>", unsafe_allow_html=True)
+    c2.markdown(f"<div class='kpi-box kpi-pos'><h2>{counts.get('Olumlu',0)}</h2><p>Olumlu</p></div>", unsafe_allow_html=True)
+    c3.markdown(f"<div class='kpi-box kpi-neu'><h2>{counts.get('Nötr',0)}</h2><p>Nötr</p></div>", unsafe_allow_html=True)
+    c4.markdown(f"<div class='kpi-box kpi-neg'><h2>{counts.get('Olumsuz',0)}</h2><p>Olumsuz</p></div>", unsafe_allow_html=True)
 
     left, right = st.columns([2, 1])
 
@@ -302,24 +259,18 @@ if analyze:
 
     with right:
         fig, ax = plt.subplots()
-        labels_pie = counts.index.tolist()
-        sizes = counts.values.tolist()
-
-        colors = ["#dc2626", "#facc15", "#16a34a"]
-
         ax.pie(
-            sizes,
-            labels=labels_pie,
+            counts.values,
+            labels=counts.index,
             autopct="%1.1f%%",
             startangle=90,
-            colors=colors,
+            colors=["#dc2626", "#facc15", "#16a34a"],
             wedgeprops={"width": 0.4}
         )
-        ax.set_title("Duygu Dağılımı")
         ax.axis("equal")
         st.pyplot(fig)
 
-    st.download_button("⬇️ CSV İndir", df.to_csv(index=False), "analiz.csv", "text/csv")
+    st.download_button("⬇️ CSV İndir", df.to_csv(index=False), "analiz.csv")
 
     buffer = BytesIO()
     df.to_excel(buffer, index=False, engine="openpyxl")
