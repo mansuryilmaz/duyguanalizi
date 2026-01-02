@@ -12,6 +12,7 @@ import os
 import redis
 from io import BytesIO
 from googleapiclient.discovery import build
+import requests
 
 # =====================================================
 # 0. ENV (Streamlit Secrets / .env)
@@ -24,6 +25,7 @@ def get_env(key, default=None):
 
 BEARER_TOKEN = get_env("BEARER_TOKEN")
 YT_API_KEY = get_env("YT_API_KEY")
+NEWS_API_KEY = get_env("NEWS_API_KEY")
 
 REDIS_HOST = get_env("REDIS_HOST")
 REDIS_PORT = int(get_env("REDIS_PORT", 6379))
@@ -42,7 +44,6 @@ redis_client = redis.Redis(
     socket_connect_timeout=5
 )
 
-
 try:
     redis_client.ping()
 except Exception as e:
@@ -52,7 +53,7 @@ except Exception as e:
 # =====================================================
 # 2. MODEL
 # =====================================================
-MODEL = "savasy/bert-base-turkish-sentiment-cased"
+MODEL = "codealchemist01/turkish-sentiment-analysis"
 
 @st.cache_resource
 def load_model():
@@ -106,12 +107,15 @@ def fetch_tweets(keyword, count):
     tweets = []
     if not twitter_client:
         return tweets
-    res = twitter_client.search_recent_tweets(
-        query=f"{keyword} lang:tr -is:retweet",
-        max_results=min(count, 100)
-    )
-    if res and res.data:
-        tweets = [t.text for t in res.data]
+    try:
+        res = twitter_client.search_recent_tweets(
+            query=f"{keyword} lang:tr -is:retweet",
+            max_results=max(10, min(count, 100))  # 10-100 arası olmalı
+        )
+        if res and res.data:
+            tweets = [t.text for t in res.data]
+    except Exception as e:
+        st.warning(f"Twitter verisi alınamadı: {e}")
     return tweets
 
 # =====================================================
@@ -137,15 +141,51 @@ def fetch_youtube_comments(keyword, limit):
             textFormat="plainText"
         ).execute()
         for item in res["items"]:
-            comments.append(
-                item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
-            )
+            comments.append(item["snippet"]["topLevelComment"]["snippet"]["textDisplay"])
             if len(comments) >= limit:
                 return comments
     return comments
 
 # =====================================================
-# 9. THEME + CSS (AYNEN KORUNDU)
+# 9. NEWS FETCH (düzeltildi)
+# =====================================================
+@st.cache_data(ttl=600)
+def fetch_news(keyword, limit):
+    url = f"https://newsapi.org/v2/everything?q={keyword}&language=tr&apiKey={NEWS_API_KEY}"
+    try:
+        res = requests.get(url).json()
+        articles = res.get("articles", [])[:limit]
+        result = []
+        for a in articles:
+            title = a.get("title","Başlık yok")
+            url_ = a.get("url","#")
+            result.append({"Başlık": title, "URL": url_})
+        return result
+    except Exception as e:
+        st.warning(f"Haber verisi alınamadı: {e}")
+        return []
+
+# =====================================================
+# Redis yardımcı fonksiyonlar
+# =====================================================
+def save_to_redis(key, data):
+    redis_client.delete(key)
+    for d in data:
+        redis_client.lpush(key, str(d))
+    redis_client.expire(key, 600)
+
+def load_news_from_redis(key):
+    data = redis_client.lrange(key, 0, -1)
+    result = []
+    for item in data:
+        try:
+            result.append(eval(item))
+        except:
+            continue
+    return pd.DataFrame(result)
+
+# =====================================================
+# 10. THEME + CSS (tasarım aynen)
 # =====================================================
 mode = st.sidebar.radio("🎨 Tema", ["Light", "Dark"])
 BG = "#0f172a" if mode == "Dark" else "#f8fafc"
@@ -158,11 +198,13 @@ st.markdown(f"""
 body, .block-container {{background:{BG}; color:{TEXT};}}
 .card {{background:{CARD}; padding:20px; border-radius:18px;
 border:1px solid {BORDER}; margin-bottom:20px;}}
+
 .stButton>button {{
 width:100%; border-radius:14px;
 background:linear-gradient(90deg,#0284c7,#22d3ee);
 font-weight:700; color:black;
 }}
+
 .kpi-box {{
     padding:12px;
     border-radius:14px;
@@ -179,10 +221,9 @@ font-weight:700; color:black;
 """, unsafe_allow_html=True)
 
 # =====================================================
-# 10. HEADER
+# 11. HEADER
 # =====================================================
 st.set_page_config(page_title="Türkçe Duygu Analizi", layout="wide")
-
 st.markdown("""
 <div class="header-card" style="
 text-align:center;
@@ -191,24 +232,26 @@ border-radius:20px;
 background: linear-gradient(135deg, #0284c7, #22d3ee, #06b6d4);
 color:white;
 margin-bottom:20px;">
-<h1>📊 Sosyal Medya Türkçe Duygu Analizi</h1>
-<p>Twitter · YouTube · BERT · Redis Cache</p>
+<h1>📊 Sosyal Medya & Haber Türkçe Duygu Analizi</h1>
+<p>Twitter · YouTube · Haber · BERT · Redis Cache</p>
 </div>
 """, unsafe_allow_html=True)
 
 # =====================================================
-# 11. INPUT
+# 12. INPUT
 # =====================================================
 st.markdown('<div class="card">', unsafe_allow_html=True)
-platform = st.selectbox("🌍 Platform", ["Twitter", "YouTube"])
-keyword = st.text_input("🔎 Konu / Hashtag", "İNÖNÜ ÜNİVERSİTESİ")
-limit = st.slider("📌 Veri Sayısı", 10, 100, 30)
+main_platform = st.selectbox("🌍 Ana Platform", ["Sosyal Medya", "Haber"])
+if main_platform == "Sosyal Medya":
+    platform = st.selectbox("📱 Sosyal Medya", ["Twitter", "YouTube"])
+keyword = st.text_input("🔎 Konu / Keyword", "İNÖNÜ ÜNİVERSİTESİ")
+limit = st.slider("📌 Veri Sayısı", 5, 100, 20)
 st.markdown('</div>', unsafe_allow_html=True)
 
-redis_key = f"{platform.lower()}:{keyword}"
+redis_key = f"{main_platform.lower()}:{keyword}"
 
 # =====================================================
-# 12. BUTTONS
+# 13. BUTTONS
 # =====================================================
 st.markdown('<div class="card">', unsafe_allow_html=True)
 b1, b2, b3 = st.columns(3)
@@ -218,38 +261,60 @@ analyze = b3.button("🤖 Analiz Et")
 st.markdown('</div>', unsafe_allow_html=True)
 
 # =====================================================
-# 13. FETCH
+# 14. FETCH
 # =====================================================
 if fetch:
     data = redis_client.lrange(redis_key, 0, -1)
     if not data:
-        data = fetch_tweets(keyword, limit) if platform == "Twitter" else fetch_youtube_comments(keyword, limit)
-        redis_client.delete(redis_key)
-        for d in data:
-            redis_client.lpush(redis_key, d)
-        redis_client.expire(redis_key, 600)
-    st.dataframe(pd.DataFrame({"text": data}), use_container_width=True)
+        if main_platform == "Sosyal Medya":
+            data = fetch_tweets(keyword, limit) if platform=="Twitter" else fetch_youtube_comments(keyword, limit)
+        else:
+            data = fetch_news(keyword, limit)
+        save_to_redis(redis_key, data)
+
+    if main_platform == "Haber":
+        df_news = load_news_from_redis(redis_key)
+        if not df_news.empty:
+            df_news["Link"] = df_news.apply(lambda r: f"[{r['Başlık']}]({r['URL']})", axis=1)
+            st.table(df_news[["Link"]])
+        else:
+            st.info("Haber bulunamadı.")
+    else:
+        st.dataframe(pd.DataFrame({"text": data}), use_container_width=True)
 
 # =====================================================
-# 14. SHOW
+# 15. SHOW
 # =====================================================
 if show:
-    data = redis_client.lrange(redis_key, 0, -1)
-    st.dataframe(pd.DataFrame({"text": data}), use_container_width=True)
+    if main_platform == "Haber":
+        df_news = load_news_from_redis(redis_key)
+        if not df_news.empty:
+            df_news["Link"] = df_news.apply(lambda r: f"[{r['Başlık']}]({r['URL']})", axis=1)
+            st.table(df_news[["Link"]])
+        else:
+            st.info("Haber bulunamadı.")
+    else:
+        data = redis_client.lrange(redis_key, 0, -1)
+        st.dataframe(pd.DataFrame({"text": data}), use_container_width=True)
 
 # =====================================================
-# 15. ANALYZE
+# 16. ANALYZE
 # =====================================================
 if analyze:
-    data = redis_client.lrange(redis_key, 0, -1)
-    if not data:
-        st.warning("Redis’te veri yok")
-        st.stop()
+    if main_platform == "Haber":
+        df = load_news_from_redis(redis_key)
+        if df.empty:
+            st.warning("Haber verisi yok")
+            st.stop()
+        df["clean"] = df["Başlık"].apply(clean_text)
+        df["Duygu"] = df["clean"].apply(predict_sentiment)
+    else:
+        data = redis_client.lrange(redis_key, 0, -1)
+        df = pd.DataFrame({"text": data})
+        df["clean"] = df["text"].apply(clean_text)
+        df["Duygu"] = df["clean"].apply(predict_sentiment)
 
-    df = pd.DataFrame({"text": data})
-    df["clean"] = df["text"].apply(clean_text)
-    df["Duygu"] = df["clean"].apply(predict_sentiment)
-
+    # KPI ve Grafik
     counts = df["Duygu"].value_counts()
     total = len(df)
 
@@ -259,10 +324,14 @@ if analyze:
     c3.markdown(f"<div class='kpi-box kpi-neu'><h2>{counts.get('Nötr',0)}</h2><p>Nötr</p></div>", unsafe_allow_html=True)
     c4.markdown(f"<div class='kpi-box kpi-neg'><h2>{counts.get('Olumsuz',0)}</h2><p>Olumsuz</p></div>", unsafe_allow_html=True)
 
-    left, right = st.columns([2, 1])
-
+    left, right = st.columns([2,1])
     with left:
-        st.dataframe(df, use_container_width=True)
+        if main_platform == "Haber":
+            df_display = df.copy()
+            df_display["Link"] = df_display.apply(lambda r: f"[{r['Başlık']}]({r['URL']})", axis=1)
+            st.table(df_display[["Link","Duygu"]])
+        else:
+            st.dataframe(df, use_container_width=True)
 
     with right:
         fig, ax = plt.subplots()
@@ -271,21 +340,22 @@ if analyze:
             labels=counts.index,
             autopct="%1.1f%%",
             startangle=90,
-            colors=["#dc2626", "#facc15", "#16a34a"],
-            wedgeprops={"width": 0.4}
+            colors=["#dc2626","#facc15","#16a34a"],
+            wedgeprops={"width":0.4}
         )
         ax.axis("equal")
         st.pyplot(fig)
 
-    st.download_button("⬇️ CSV İndir", df.to_csv(index=False), "analiz.csv")
-
-    buffer = BytesIO()
-    df.to_excel(buffer, index=False, engine="openpyxl")
-    buffer.seek(0)
-
-    st.download_button(
-        "⬇️ Excel İndir",
-        buffer,
-        "analiz.xlsx",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    # CSV & Excel
+    if main_platform == "Haber":
+        st.download_button("⬇️ CSV İndir", df[["Başlık","URL","Duygu"]].to_csv(index=False), "analiz.csv")
+        buffer = BytesIO()
+        df[["Başlık","URL","Duygu"]].to_excel(buffer, index=False, engine="openpyxl")
+        buffer.seek(0)
+        st.download_button("⬇️ Excel İndir", buffer, "analiz.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    else:
+        st.download_button("⬇️ CSV İndir", df[["text","Duygu"]].to_csv(index=False), "analiz.csv")
+        buffer = BytesIO()
+        df[["text","Duygu"]].to_excel(buffer, index=False, engine="openpyxl")
+        buffer.seek(0)
+        st.download_button("⬇️ Excel İndir", buffer, "analiz.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

@@ -1,12 +1,11 @@
 streamlit
 pandas
 tweepy
-python-dotenv
-transformers
 torch
-emoji
+transformers
 matplotlib
+emoji
 redis
 google-api-python-client
+requests
 openpyxl
-
